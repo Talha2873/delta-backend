@@ -51,7 +51,7 @@ MIDDLEWARE = [
 # CORS
 # ─────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+       "https://delta-developer.vercel.app",
 ]
 
 # ─────────────────────────────────────────────
