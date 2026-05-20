@@ -1,4 +1,15 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+
+/* ═══════════════════════════════════════════════════════════
+   DELTA DEVELOPERS — AI CHAT WIDGET
+   Brand: Lime #a1da30 | Dark #0c1208 | Outfit + Space Grotesk
+═══════════════════════════════════════════════════════════ */
+
+const BRAND = '#a1da30'
+const BRAND_DIM = 'rgba(161,218,48,'
+const BG_DEEP = '#0c1208'
+const BG_MID = '#111a08'
+const BG_CARD = '#0f1a09'
 
 const QUICK_REPLIES = [
   'I need a website for my business',
@@ -7,115 +18,227 @@ const QUICK_REPLIES = [
   'I need a WhatsApp chatbot',
 ]
 
-/* ─── Icons ─────────────────────────────────────────── */
+/* ─── Canvas Particle Background ───────────────────────── */
+const ParticleCanvas = () => {
+  const canvasRef = useRef(null)
+  const animRef = useRef(null)
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    let W = canvas.offsetWidth
+    let H = canvas.offsetHeight
+    canvas.width = W
+    canvas.height = H
+
+    const resize = () => {
+      W = canvas.offsetWidth
+      H = canvas.offsetHeight
+      canvas.width = W
+      canvas.height = H
+    }
+    window.addEventListener('resize', resize)
+
+    // Particles
+    const PARTICLES = Array.from({ length: 38 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.8 + 0.4,
+      vx: (Math.random() - 0.5) * 0.28,
+      vy: (Math.random() - 0.5) * 0.28,
+      alpha: Math.random() * 0.55 + 0.1,
+    }))
+
+    // Grid lines
+    const GRID_LINES = []
+    const GRID_SPACING = 36
+    for (let x = 0; x < 600; x += GRID_SPACING) GRID_LINES.push({ type: 'v', pos: x })
+    for (let y = 0; y < 700; y += GRID_SPACING) GRID_LINES.push({ type: 'h', pos: y })
+
+    // Scanline
+    let scanY = 0
+
+    let frame = 0
+    const draw = () => {
+      animRef.current = requestAnimationFrame(draw)
+      frame++
+      ctx.clearRect(0, 0, W, H)
+
+      // Grid
+      ctx.lineWidth = 0.5
+      GRID_LINES.forEach(l => {
+        ctx.strokeStyle = `rgba(161,218,48,0.045)`
+        ctx.beginPath()
+        if (l.type === 'v') { ctx.moveTo(l.pos, 0); ctx.lineTo(l.pos, H) }
+        else { ctx.moveTo(0, l.pos); ctx.lineTo(W, l.pos) }
+        ctx.stroke()
+      })
+
+      // Scanline sweep
+      scanY = (scanY + 0.6) % (H + 120)
+      const grad = ctx.createLinearGradient(0, scanY - 60, 0, scanY + 60)
+      grad.addColorStop(0, 'rgba(161,218,48,0)')
+      grad.addColorStop(0.5, 'rgba(161,218,48,0.04)')
+      grad.addColorStop(1, 'rgba(161,218,48,0)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, scanY - 60, W, 120)
+
+      // Particles + connections
+      PARTICLES.forEach(p => {
+        p.x += p.vx
+        p.y += p.vy
+        if (p.x < 0) p.x = W
+        if (p.x > W) p.x = 0
+        if (p.y < 0) p.y = H
+        if (p.y > H) p.y = 0
+
+        // Pulse alpha
+        p.alpha = 0.15 + 0.35 * Math.abs(Math.sin(frame * 0.012 + p.x))
+
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(161,218,48,${p.alpha})`
+        ctx.fill()
+      })
+
+      // Connection lines between close particles
+      for (let i = 0; i < PARTICLES.length; i++) {
+        for (let j = i + 1; j < PARTICLES.length; j++) {
+          const dx = PARTICLES[i].x - PARTICLES[j].x
+          const dy = PARTICLES[i].y - PARTICLES[j].y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < 90) {
+            ctx.strokeStyle = `rgba(161,218,48,${0.08 * (1 - dist / 90)})`
+            ctx.lineWidth = 0.6
+            ctx.beginPath()
+            ctx.moveTo(PARTICLES[i].x, PARTICLES[i].y)
+            ctx.lineTo(PARTICLES[j].x, PARTICLES[j].y)
+            ctx.stroke()
+          }
+        }
+      }
+
+      // Corner glow orbs
+      const orb1 = ctx.createRadialGradient(0, 0, 0, 0, 0, 180)
+      orb1.addColorStop(0, 'rgba(161,218,48,0.07)')
+      orb1.addColorStop(1, 'rgba(161,218,48,0)')
+      ctx.fillStyle = orb1
+      ctx.fillRect(0, 0, 180, 180)
+
+      const orb2 = ctx.createRadialGradient(W, H, 0, W, H, 160)
+      orb2.addColorStop(0, 'rgba(161,218,48,0.05)')
+      orb2.addColorStop(1, 'rgba(161,218,48,0)')
+      ctx.fillStyle = orb2
+      ctx.fillRect(W - 160, H - 160, 160, 160)
+    }
+
+    draw()
+    return () => {
+      cancelAnimationFrame(animRef.current)
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute', inset: 0,
+        width: '100%', height: '100%',
+        pointerEvents: 'none', zIndex: 0,
+        borderRadius: 'inherit',
+      }}
+    />
+  )
+}
+
+/* ─── Icons ─────────────────────────────────────────────── */
 const SendIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke={BG_DEEP} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
     <line x1="22" y1="2" x2="11" y2="13" />
-    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    <polygon points="22 2 15 22 11 13 2 9 22 2" fill={BG_DEEP} />
   </svg>
 )
 
-const CloseIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white"
-    strokeWidth="2.5" strokeLinecap="round">
+const XIcon = ({ size = 16, color = 'rgba(255,255,255,0.55)' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth="2.5" strokeLinecap="round">
     <line x1="18" y1="6" x2="6" y2="18" />
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 )
 
-const SmallCloseIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    strokeWidth="2.5" strokeLinecap="round">
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
+/* ─── FAB Icon: Delta D ──────────────────────────────────── */
+const DIcon = ({ size = 26 }) => (
+  <svg width={size} height={size} viewBox="0 0 44 44" fill="none">
+    <path
+      d="M13 11H21.8C28.8 11 34.5 16.7 34.5 23C34.5 29.3 28.8 35 21.8 35H13V11Z"
+      fill="none" stroke={BG_DEEP} strokeWidth="2.6"
+      strokeLinejoin="round" strokeLinecap="round"
+    />
+    <path
+      d="M17.5 16.5H21.8C26.1 16.5 29.5 19.4 29.5 23C29.5 26.6 26.1 29.5 21.8 29.5H17.5V16.5Z"
+      fill={`${BG_DEEP}55`}
+    />
   </svg>
 )
 
-/* ── Premium D FAB Icon ── */
-const DeltaDIcon = () => (
-  <svg width="36" height="36" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="22" cy="22" r="20" stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
-    <circle cx="22" cy="22" r="13" stroke="rgba(255,255,255,0.06)" strokeWidth="0.8" />
-    {/* Premium D letterform */}
-    <path
-      d="M14 12H21.5C27.8513 12 33 16.9249 33 23C33 29.0751 27.8513 34 21.5 34H14V12Z"
-      fill="none" stroke="white" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
-    />
-    {/* Inner fill */}
-    <path
-      d="M17.5 17H21.5C25.366 17 28.5 19.686 28.5 23C28.5 26.314 25.366 29 21.5 29H17.5V17Z"
-      fill="rgba(255,255,255,0.18)"
-    />
-    {/* Gold accent dots */}
-    <circle cx="22" cy="4.5" r="2" fill="rgba(255,210,100,0.92)" />
-    <circle cx="6" cy="35" r="1.6" fill="rgba(255,210,100,0.78)" />
-    <circle cx="38" cy="35" r="1.6" fill="rgba(255,210,100,0.78)" />
-  </svg>
+/* ─── Avatar ─────────────────────────────────────────────── */
+const BotAvatar = () => (
+  <div style={{
+    width: 42, height: 42, borderRadius: 13,
+    background: BRAND,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+    position: 'relative', overflow: 'hidden',
+    boxShadow: `0 0 0 2px ${BRAND_DIM}0.25), 0 4px 16px ${BRAND_DIM}0.2)`,
+  }}>
+    <div style={{
+      position: 'absolute', top: -12, left: -8,
+      width: 16, height: 80,
+      background: 'rgba(255,255,255,0.25)',
+      transform: 'rotate(28deg)',
+      animation: 'ddAvatarShimmer 3s ease-in-out infinite',
+      pointerEvents: 'none',
+    }} />
+    <DIcon size={22} />
+  </div>
 )
 
-/* ── Typing Dots ── */
+/* ─── Typing Dots ────────────────────────────────────────── */
 const TypingDots = () => (
-  <div style={{ display: 'flex', gap: '5px', alignItems: 'center', padding: '2px 0' }}>
+  <div style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '2px 0' }}>
     {[0, 1, 2].map(i => (
       <div key={i} style={{
-        width: '7px', height: '7px', borderRadius: '50%',
-        background: '#f97316',
-        animation: 'dtTyping 1.3s ease-in-out infinite',
+        width: 7, height: 7, borderRadius: '50%',
+        background: BRAND,
+        animation: 'ddTyping 1.3s ease-in-out infinite',
         animationDelay: `${i * 0.19}s`,
+        opacity: 0.3,
       }} />
     ))}
   </div>
 )
 
-/* ── Header Avatar (D shape) ── */
-const HeaderAvatar = () => (
-  <div style={{
-    width: '44px', height: '44px', borderRadius: '14px',
-    background: 'linear-gradient(145deg,#ff8c38,#c0230a)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-    boxShadow: '0 0 0 2px rgba(249,115,22,0.4), 0 5px 20px rgba(249,115,22,0.3)',
-    position: 'relative', overflow: 'hidden',
-  }}>
-    <div style={{
-      position: 'absolute', top: '-10px', left: '-6px',
-      width: '22px', height: '70px',
-      background: 'rgba(255,255,255,0.18)',
-      transform: 'rotate(28deg)',
-      pointerEvents: 'none',
-    }} />
-    <svg width="22" height="22" viewBox="0 0 36 36" fill="none">
-      <path
-        d="M10 8H19C24.5228 8 29 12.4772 29 18C29 23.5228 24.5228 28 19 28H10V8Z"
-        fill="none" stroke="white" strokeWidth="2" strokeLinejoin="round"
-      />
-      <path
-        d="M14 13H19C21.7614 13 24 15.2386 24 18C24 20.7614 21.7614 23 19 23H14V13Z"
-        fill="rgba(255,255,255,0.25)"
-      />
-    </svg>
-  </div>
-)
-
-/* ══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
    MAIN COMPONENT
-══════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════ */
 export default function DeltaAssistant() {
-  const [isOpen, setIsOpen]       = useState(false)
-  const [messages, setMessages]   = useState([{
+  const [isOpen, setIsOpen] = useState(false)
+  const [messages, setMessages] = useState([{
     role: 'assistant',
-    content: "Hey! 👋 I'm Delta Assistant.\n\nHow can I help you today?",
+    content: "Hey! 👋 I'm Delta Assistant.\n\nHow can I help your business today?",
     time: new Date(),
   }])
-  const [input, setInput]         = useState('')
-  const [isTyping, setIsTyping]   = useState(false)
+  const [input, setInput] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
   const [hasUnread, setHasUnread] = useState(false)
-  const [fabHover, setFabHover]   = useState(false)
+  const [fabHover, setFabHover] = useState(false)
 
   const messagesEndRef = useRef(null)
-  const inputRef       = useRef(null)
+  const inputRef = useRef(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -128,13 +251,13 @@ export default function DeltaAssistant() {
   const openChat = () => {
     setIsOpen(true)
     setHasUnread(false)
-    setTimeout(() => inputRef.current?.focus(), 250)
+    setTimeout(() => inputRef.current?.focus(), 280)
   }
 
   const closeChat = () => setIsOpen(false)
 
-  const sendMessage = async text => {
-    const userText = (text || input).trim()
+  const sendMessage = useCallback(async text => {
+    const userText = (text ?? input).trim()
     if (!userText || isTyping) return
     setInput('')
     const userMessage = { role: 'user', content: userText, time: new Date() }
@@ -142,7 +265,7 @@ export default function DeltaAssistant() {
     setMessages(updatedMessages)
     setIsTyping(true)
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/chat/', {
+      const res = await fetch('https://delta-backend-production-3ba3.up.railway.app/api/chat/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -155,17 +278,16 @@ export default function DeltaAssistant() {
         content: data.reply || 'No response received.',
         time: new Date(),
       }])
-    } catch (err) {
-      console.error('FETCH ERROR:', err)
+    } catch {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Connection failed. Make sure the backend is running. 🔌',
+        content: '⚡ Connection failed. Please try again in a moment.',
         time: new Date(),
       }])
     } finally {
       setIsTyping(false)
     }
-  }
+  }, [input, isTyping, messages])
 
   const handleKeyDown = e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
@@ -175,307 +297,417 @@ export default function DeltaAssistant() {
 
   return (
     <>
+      {/* ── Global Styles ── */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-        @keyframes dtTyping {
-          0%,60%,100%{ transform:translateY(0);opacity:.3; }
-          30%{ transform:translateY(-7px);opacity:1; }
+        /* ── Keyframes ── */
+        @keyframes ddTyping {
+          0%,60%,100%{ transform:translateY(0); opacity:.3; }
+          30%{ transform:translateY(-6px); opacity:1; }
         }
-        @keyframes dtSlideDown {
-          from{ opacity:0; transform:translateY(-20px) scale(0.93); }
+        @keyframes ddSlideUp {
+          from{ opacity:0; transform:translateY(18px) scale(0.96); }
           to  { opacity:1; transform:translateY(0) scale(1); }
         }
-        @keyframes dtFadeIn {
-          from{ opacity:0; transform:translateY(8px); }
+        @keyframes ddFadeIn {
+          from{ opacity:0; transform:translateY(9px); }
           to  { opacity:1; transform:translateY(0); }
         }
-        @keyframes dtPulse {
-          0%  { transform:scale(1);   opacity:.55; }
-          70% { transform:scale(1.85);opacity:0;   }
-          100%{ transform:scale(1.85);opacity:0;   }
+        @keyframes ddPulse {
+          0%  { transform:scale(1); opacity:.6; }
+          70% { transform:scale(1.9); opacity:0; }
+          100%{ transform:scale(1.9); opacity:0; }
         }
-        @keyframes dtGlow {
-          0%,100%{ box-shadow:0 0 0 0 rgba(249,115,22,0),0 8px 28px rgba(180,40,10,0.38); }
-          50%    { box-shadow:0 0 18px 5px rgba(249,115,22,0.38),0 8px 28px rgba(180,40,10,0.52); }
+        @keyframes ddBlink {
+          0%,100%{ opacity:1; box-shadow:0 0 8px rgba(161,218,48,0.9); }
+          50%    { opacity:.25; box-shadow:0 0 3px rgba(161,218,48,0.3); }
         }
-        @keyframes dtShimmer {
-          0%  { left:-60%; }
-          100%{ left:130%; }
+        @keyframes ddAvatarShimmer {
+          0%  { left:-30px; }
+          60% { left:60px; }
+          100%{ left:60px; }
         }
-        @keyframes dtBlink {
-          0%,100%{ opacity:1; }
-          50%    { opacity:.3; }
+        @keyframes ddFabShimmer {
+          0%  { left:-50px; }
+          55% { left:90px; }
+          100%{ left:90px; }
         }
-        @keyframes dtHdrShimmer {
-          0%  { left:-60%; }
-          100%{ left:130%; }
+        @keyframes ddOrbit {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        @keyframes ddHdrLine {
+          0%  { transform:translateX(-100%); }
+          100%{ transform:translateX(400%); }
+        }
+        @keyframes ddGlow {
+          0%,100%{ box-shadow:0 0 0 0 rgba(161,218,48,0), 0 8px 30px rgba(30,60,10,0.5); }
+          50%    { box-shadow:0 0 20px 6px rgba(161,218,48,0.22), 0 8px 30px rgba(30,60,10,0.5); }
+        }
+        @keyframes ddBadgePop {
+          0%  { transform:scale(0); }
+          70% { transform:scale(1.18); }
+          100%{ transform:scale(1); }
+        }
+        @keyframes ddQuickFade {
+          from{ opacity:0; transform:translateY(6px); }
+          to  { opacity:1; transform:translateY(0); }
+        }
+        @keyframes ddCornerPulse {
+          0%,100%{ opacity:0.4; }
+          50%{ opacity:1; }
         }
 
-        .dt-window{ animation:dtSlideDown .36s cubic-bezier(.22,1,.36,1) forwards; font-family:'Outfit',sans-serif; }
-        .dt-msg   { animation:dtFadeIn .28s ease forwards; }
+        /* ── Component classes ── */
+        .dd-window {
+          animation: ddSlideUp 0.38s cubic-bezier(0.22,1,0.36,1) forwards;
+          font-family: 'Outfit', sans-serif;
+        }
+        .dd-msg { animation: ddFadeIn 0.3s ease forwards; }
 
-        .dt-scroll::-webkit-scrollbar      { width:3px; }
-        .dt-scroll::-webkit-scrollbar-track{ background:transparent; }
-        .dt-scroll::-webkit-scrollbar-thumb{ background:rgba(249,115,22,0.28); border-radius:10px; }
+        .dd-scroll::-webkit-scrollbar { width: 3px; }
+        .dd-scroll::-webkit-scrollbar-track { background: transparent; }
+        .dd-scroll::-webkit-scrollbar-thumb {
+          background: rgba(161,218,48,0.22);
+          border-radius: 8px;
+        }
 
-        .dt-input{ font-family:'Outfit',sans-serif !important; }
-        .dt-input:focus{ outline:none !important; border-color:rgba(249,115,22,0.65) !important; box-shadow:0 0 0 3px rgba(249,115,22,0.1) !important; }
-        .dt-input::placeholder{ color:rgba(255,255,255,0.2); }
+        .dd-input {
+          font-family: 'Outfit', sans-serif !important;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .dd-input:focus {
+          outline: none !important;
+          border-color: rgba(161,218,48,0.55) !important;
+          box-shadow: 0 0 0 3px rgba(161,218,48,0.08) !important;
+        }
+        .dd-input::placeholder { color: rgba(255,255,255,0.18); }
 
-        .dt-send:hover:not(:disabled){ transform:scale(1.09); box-shadow:0 6px 28px rgba(249,115,22,0.6) !important; }
-        .dt-send:disabled{ opacity:.32; cursor:not-allowed; }
-        .dt-send{ transition:transform .18s, box-shadow .18s; }
+        .dd-send {
+          transition: transform 0.18s, box-shadow 0.18s;
+        }
+        .dd-send:hover:not(:disabled) {
+          transform: scale(1.1);
+          box-shadow: 0 6px 24px rgba(161,218,48,0.45) !important;
+        }
+        .dd-send:disabled { opacity: 0.28; cursor: not-allowed; }
 
-        .dt-quick:hover{ background:rgba(249,115,22,0.22) !important; border-color:rgba(249,115,22,0.58) !important; transform:translateY(-2px); box-shadow:0 4px 16px rgba(249,115,22,0.22); }
-        .dt-quick{ transition:all .2s; }
+        .dd-quick {
+          transition: all 0.2s;
+          font-family: 'Outfit', sans-serif;
+          animation: ddQuickFade 0.35s ease forwards;
+        }
+        .dd-quick:hover {
+          background: rgba(161,218,48,0.16) !important;
+          border-color: rgba(161,218,48,0.55) !important;
+          color: rgba(255,255,255,0.9) !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 18px rgba(161,218,48,0.15);
+        }
 
-        .dt-close-hdr:hover{ background:rgba(255,255,255,0.16) !important; }
-        .dt-close-hdr{ transition:background .18s; }
+        .dd-close-btn {
+          transition: background 0.18s;
+        }
+        .dd-close-btn:hover {
+          background: rgba(255,255,255,0.14) !important;
+        }
 
-        .dt-hdr-shimmer{
-          position:absolute; top:0; left:-60%; width:40%; height:100%;
-          background:linear-gradient(90deg,transparent,rgba(255,255,255,0.055),transparent);
-          animation:dtHdrShimmer 4s ease-in-out infinite;
-          pointer-events:none;
+        .dd-fab-btn {
+          transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .dd-fab-btn:hover { transform: scale(1.12) !important; }
+
+        .dd-hdr-shine {
+          position: absolute; top: 0; height: 100%;
+          width: 35%; left: -35%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+          animation: ddHdrLine 5s ease-in-out infinite 2s;
+          pointer-events: none;
         }
       `}</style>
 
-      {/* ══ FAB — TOP RIGHT ════════════════════════════ */}
-      <div style={{ position: 'fixed', top: '30px', right: '30px', zIndex: 9999 }}>
+      {/* ══ FAB BUTTON ════════════════════════════════════ */}
+      <div style={{ position: 'fixed', top: 28, right: 28, zIndex: 9999 }}>
 
         {/* Tooltip */}
         {!isOpen && fabHover && (
           <div style={{
-            position: 'absolute', top: '78px', right: '0',
-            background: 'rgba(12,12,12,0.97)',
-            border: '1px solid rgba(249,115,22,0.28)',
-            borderRadius: '12px',
-            padding: '8px 14px',
-            color: 'white', fontSize: '12px',
-            fontFamily: "'Outfit',sans-serif", fontWeight: '500',
+            position: 'absolute', top: 78, right: 0,
+            background: '#111a08',
+            border: `1px solid ${BRAND_DIM}0.22)`,
+            borderRadius: 12, padding: '8px 14px',
+            color: 'rgba(255,255,255,0.82)', fontSize: 12,
+            fontFamily: "'Outfit', sans-serif", fontWeight: 500,
             whiteSpace: 'nowrap',
-            boxShadow: '0 10px 28px rgba(0,0,0,0.55)',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
             pointerEvents: 'none',
             letterSpacing: '0.01em',
+            zIndex: 10,
           }}>
             💬 Chat with Delta Assistant
             <div style={{
-              position: 'absolute', top: '-6px', right: '22px',
-              width: '10px', height: '10px',
-              background: 'rgba(12,12,12,0.97)',
-              border: '1px solid rgba(249,115,22,0.28)',
+              position: 'absolute', top: -6, right: 22,
+              width: 10, height: 10,
+              background: '#111a08',
+              border: `1px solid ${BRAND_DIM}0.22)`,
               borderBottom: 'none', borderRight: 'none',
               transform: 'rotate(45deg)',
             }} />
           </div>
         )}
 
-        {/* Pulse rings — only when closed */}
-        {!isOpen && [0, 0.8, 1.6].map((delay, i) => (
+        {/* Pulse rings */}
+        {!isOpen && [0, 0.75, 1.5].map((delay, i) => (
           <div key={i} style={{
             position: 'absolute', inset: 0, borderRadius: '50%',
-            border: '2px solid rgba(249,115,22,0.45)',
-            animation: `dtPulse 2.6s ease-out ${delay}s infinite`,
+            border: `1.5px solid ${BRAND_DIM}0.38)`,
+            animation: `ddPulse 2.5s ease-out ${delay}s infinite`,
             pointerEvents: 'none',
           }} />
         ))}
 
-        {/* FAB button */}
+        {/* Orbit ring */}
+        {!isOpen && (
+          <div style={{
+            position: 'absolute', inset: -14,
+            borderRadius: '50%',
+            border: `1px dashed ${BRAND_DIM}0.18)`,
+            animation: 'ddOrbit 10s linear infinite',
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              position: 'absolute', top: -3.5, left: '50%', marginLeft: -3.5,
+              width: 7, height: 7, borderRadius: '50%',
+              background: BRAND,
+              boxShadow: `0 0 10px ${BRAND}`,
+            }} />
+          </div>
+        )}
+
+        {/* FAB */}
         <button
+          className="dd-fab-btn"
           onMouseEnter={() => setFabHover(true)}
           onMouseLeave={() => setFabHover(false)}
           onClick={() => isOpen ? closeChat() : openChat()}
           style={{
-            width: '64px', height: '64px',
+            width: 64, height: 64,
             borderRadius: '50%',
-            border: 'none', cursor: 'pointer',
-            background: 'linear-gradient(145deg,#ff7a20,#b81c0a)',
+            border: `2px solid ${BRAND_DIM}0.3)`,
+            cursor: 'pointer',
+            background: BG_DEEP,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             position: 'relative', overflow: 'hidden',
-            animation: 'dtGlow 3s ease-in-out infinite',
-            transition: 'transform .22s',
-            transform: fabHover ? 'scale(1.1)' : 'scale(1)',
+            animation: 'ddGlow 3s ease-in-out infinite',
           }}
         >
-          {/* Shimmer sweep */}
+          {/* Inner lime circle */}
           <div style={{
-            position: 'absolute', top: '-20px', left: '-40px',
-            width: '32px', height: '130px',
-            background: 'rgba(255,255,255,0.22)',
-            transform: 'rotate(25deg)',
-            animation: 'dtShimmer 3s ease-in-out infinite',
-            pointerEvents: 'none',
-          }} />
-          {isOpen ? <CloseIcon /> : <DeltaDIcon />}
+            position: 'absolute', inset: 6,
+            borderRadius: '50%',
+            background: BRAND,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden',
+          }}>
+            {/* Shimmer */}
+            <div style={{
+              position: 'absolute', top: -12, left: -20,
+              width: 14, height: 80,
+              background: 'rgba(255,255,255,0.3)',
+              transform: 'rotate(28deg)',
+              animation: 'ddFabShimmer 2.8s ease-in-out infinite',
+              pointerEvents: 'none',
+            }} />
+            {isOpen
+              ? <XIcon size={18} color={BG_DEEP} />
+              : <DIcon size={24} />
+            }
+          </div>
         </button>
 
         {/* Unread badge */}
         {hasUnread && !isOpen && (
           <div style={{
-            position: 'absolute', top: '-4px', right: '-4px',
-            width: '21px', height: '21px', borderRadius: '50%',
-            background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
-            color: 'white', fontSize: '11px', fontWeight: '700',
-            fontFamily: "'Outfit',sans-serif",
+            position: 'absolute', top: -5, right: -5,
+            width: 22, height: 22, borderRadius: '50%',
+            background: '#ef4444',
+            color: 'white', fontSize: 11, fontWeight: 700,
+            fontFamily: "'Outfit', sans-serif",
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2.5px solid #080808',
-            boxShadow: '0 2px 10px rgba(239,68,68,0.65)',
+            border: `2.5px solid ${BG_DEEP}`,
+            boxShadow: '0 2px 10px rgba(239,68,68,0.7)',
+            animation: 'ddBadgePop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards',
           }}>1</div>
         )}
       </div>
 
-      {/* ══ CHAT WINDOW — TOP RIGHT ════════════════════ */}
+      {/* ══ CHAT WINDOW ═══════════════════════════════════ */}
       {isOpen && (
-        <div className="dt-window" style={{
+        <div className="dd-window" style={{
           position: 'fixed',
-          top: '110px', right: '30px',
-          width: '420px',
-          maxWidth: 'calc(100vw - 40px)',
-          height: '600px',
-          background: '#080808',
-          borderRadius: '26px',
+          top: 108, right: 28,
+          width: 420,
+          maxWidth: 'calc(100vw - 36px)',
+          height: 610,
+          background: BG_DEEP,
+          borderRadius: 24,
           overflow: 'hidden',
-          border: '1px solid rgba(249,115,22,0.18)',
+          border: `1px solid ${BRAND_DIM}0.16)`,
           display: 'flex', flexDirection: 'column',
           zIndex: 9998,
           boxShadow: [
-            '0 40px 90px rgba(0,0,0,0.75)',
-            '0 0 0 1px rgba(255,255,255,0.05)',
-            'inset 0 1px 0 rgba(255,255,255,0.07)',
+            '0 40px 100px rgba(0,0,0,0.8)',
+            '0 0 0 1px rgba(255,255,255,0.04)',
+            'inset 0 1px 0 rgba(255,255,255,0.06)',
           ].join(','),
         }}>
 
           {/* ── HEADER ── */}
           <div style={{
-            padding: '16px 18px',
-            background: 'linear-gradient(135deg,#1f0900 0%,#130200 55%,#0f0800 100%)',
-            display: 'flex', alignItems: 'center', gap: '13px',
-            borderBottom: '1px solid rgba(249,115,22,0.1)',
-            position: 'relative', overflow: 'hidden',
+            padding: '14px 16px',
+            background: BG_MID,
+            display: 'flex', alignItems: 'center', gap: 12,
+            borderBottom: `1px solid ${BRAND_DIM}0.1)`,
             flexShrink: 0,
+            position: 'relative', overflow: 'hidden',
           }}>
-            <div className="dt-hdr-shimmer" />
+            <div className="dd-hdr-shine" />
+            {/* Header glow orbs */}
             <div style={{
-              position: 'absolute', top: '-45px', left: '-20px',
-              width: '160px', height: '160px',
-              background: 'radial-gradient(circle,rgba(249,115,22,0.13) 0%,transparent 65%)',
+              position: 'absolute', top: -50, left: -30,
+              width: 180, height: 180,
+              background: `radial-gradient(circle, ${BRAND_DIM}0.07) 0%, transparent 65%)`,
               pointerEvents: 'none',
             }} />
             <div style={{
-              position: 'absolute', bottom: '-30px', right: '10px',
-              width: '110px', height: '110px',
-              background: 'radial-gradient(circle,rgba(220,38,38,0.09) 0%,transparent 70%)',
+              position: 'absolute', bottom: -40, right: -10,
+              width: 140, height: 140,
+              background: `radial-gradient(circle, ${BRAND_DIM}0.04) 0%, transparent 65%)`,
               pointerEvents: 'none',
             }} />
 
-            <HeaderAvatar />
+            <BotAvatar />
 
             <div style={{ flex: 1 }}>
               <div style={{
-                color: 'white',
-                fontFamily: "'Outfit',sans-serif",
-                fontWeight: '800', fontSize: '15px',
-                letterSpacing: '0.06em', textTransform: 'uppercase',
+                color: '#e8f5d0',
+                fontFamily: "'Outfit', sans-serif",
+                fontWeight: 800, fontSize: 14,
+                letterSpacing: '0.07em', textTransform: 'uppercase',
               }}>Delta Assistant</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                 <div style={{
-                  width: '7px', height: '7px', borderRadius: '50%',
-                  background: '#22c55e',
-                  boxShadow: '0 0 7px rgba(34,197,94,0.85)',
-                  animation: 'dtBlink 3.2s ease-in-out infinite',
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: BRAND,
+                  animation: 'ddBlink 3s ease-in-out infinite',
                 }} />
                 <span style={{
-                  fontSize: '11px', color: 'rgba(255,255,255,0.35)',
-                  fontFamily: "'Outfit',sans-serif", fontWeight: '400',
+                  fontSize: 11, color: 'rgba(255,255,255,0.32)',
+                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 400,
                 }}>Online · Replies instantly</span>
               </div>
             </div>
 
             {/* AI badge */}
             <div style={{
-              fontSize: '9px', fontWeight: '600',
-              color: 'rgba(249,115,22,0.65)',
-              fontFamily: "'JetBrains Mono',monospace",
-              letterSpacing: '0.08em',
-              background: 'rgba(249,115,22,0.08)',
-              border: '1px solid rgba(249,115,22,0.2)',
-              padding: '3px 8px', borderRadius: '7px',
-              marginRight: '4px',
+              fontSize: 9, fontWeight: 700,
+              color: BRAND,
+              fontFamily: "'Space Grotesk', monospace",
+              letterSpacing: '0.1em',
+              background: `${BRAND_DIM}0.1)`,
+              border: `1px solid ${BRAND_DIM}0.22)`,
+              padding: '3px 8px', borderRadius: 7,
+              marginRight: 4,
+              textTransform: 'uppercase',
             }}>AI</div>
 
-            {/* CLOSE button */}
+            {/* Close */}
             <button
-              className="dt-close-hdr"
+              className="dd-close-btn"
               onClick={closeChat}
               title="Close chat"
               style={{
-                width: '32px', height: '32px', borderRadius: '10px',
+                width: 32, height: 32, borderRadius: 9,
                 border: 'none',
-                background: 'rgba(255,255,255,0.07)',
-                color: 'rgba(255,255,255,0.6)',
+                background: 'rgba(255,255,255,0.06)',
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
-            ><SmallCloseIcon /></button>
+            >
+              <XIcon size={13} />
+            </button>
           </div>
 
-          {/* ── MESSAGES ── */}
-          <div className="dt-scroll" style={{
+          {/* ── MESSAGES AREA ── */}
+          <div className="dd-scroll" style={{
             flex: 1, overflowY: 'auto',
-            padding: '18px 16px',
-            display: 'flex', flexDirection: 'column', gap: '15px',
-            background: 'linear-gradient(180deg,#0c0c0c 0%,#080808 100%)',
+            padding: '16px 14px',
+            display: 'flex', flexDirection: 'column', gap: 14,
+            background: BG_DEEP,
             position: 'relative',
           }}>
-            {/* Dot-grid bg */}
+            {/* Animated canvas background */}
+            <ParticleCanvas />
+
+            {/* Corner accent lines */}
             <div style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none',
-              backgroundImage: 'radial-gradient(rgba(249,115,22,0.055) 1px, transparent 1px)',
-              backgroundSize: '26px 26px',
-              opacity: 0.5,
+              position: 'absolute', top: 12, left: 12,
+              width: 20, height: 20,
+              borderTop: `1.5px solid ${BRAND_DIM}0.3)`,
+              borderLeft: `1.5px solid ${BRAND_DIM}0.3)`,
+              pointerEvents: 'none', zIndex: 1,
+              animation: 'ddCornerPulse 3s ease-in-out infinite',
+            }} />
+            <div style={{
+              position: 'absolute', bottom: 12, right: 12,
+              width: 20, height: 20,
+              borderBottom: `1.5px solid ${BRAND_DIM}0.3)`,
+              borderRight: `1.5px solid ${BRAND_DIM}0.3)`,
+              pointerEvents: 'none', zIndex: 1,
+              animation: 'ddCornerPulse 3s ease-in-out infinite 1.5s',
             }} />
 
+            {/* Messages */}
             {messages.map((msg, i) => {
               const isUser = msg.role === 'user'
               return (
-                <div key={i} className="dt-msg" style={{
+                <div key={i} className="dd-msg" style={{
                   display: 'flex', flexDirection: 'column',
                   alignItems: isUser ? 'flex-end' : 'flex-start',
                   position: 'relative', zIndex: 1,
                 }}>
                   <div style={{
-                    fontSize: '9px', fontWeight: '600',
-                    letterSpacing: '0.12em', textTransform: 'uppercase',
-                    marginBottom: '5px',
-                    fontFamily: "'JetBrains Mono',monospace",
-                    color: isUser ? 'rgba(249,115,22,0.55)' : 'rgba(255,255,255,0.22)',
+                    fontSize: 9, fontWeight: 700,
+                    letterSpacing: '0.14em', textTransform: 'uppercase',
+                    marginBottom: 5,
+                    fontFamily: "'Space Grotesk', monospace",
+                    color: isUser ? `${BRAND_DIM}0.55)` : 'rgba(255,255,255,0.2)',
                   }}>
                     {isUser ? 'You' : '△ Delta'}
                   </div>
 
                   <div style={{
-                    maxWidth: '78%',
-                    padding: '12px 16px',
-                    borderRadius: isUser ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
-                    background: isUser
-                      ? 'linear-gradient(140deg,#f97316,#b91c1c)'
-                      : 'rgba(255,255,255,0.048)',
-                    color: 'white',
-                    fontSize: '13.5px', lineHeight: '1.68',
+                    maxWidth: '80%',
+                    padding: '11px 15px',
+                    borderRadius: isUser ? '18px 3px 18px 18px' : '3px 18px 18px 18px',
+                    background: isUser ? BRAND : 'rgba(255,255,255,0.045)',
+                    color: isUser ? BG_DEEP : 'rgba(255,255,255,0.82)',
+                    fontSize: 13.5, lineHeight: 1.68,
                     whiteSpace: 'pre-wrap',
-                    fontFamily: "'Outfit',sans-serif",
-                    fontWeight: isUser ? '500' : '400',
-                    border: isUser ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                    fontFamily: "'Outfit', sans-serif",
+                    fontWeight: isUser ? 600 : 400,
+                    border: isUser ? 'none' : `1px solid ${BRAND_DIM}0.1)`,
                     boxShadow: isUser
-                      ? '0 5px 22px rgba(249,115,22,0.32), inset 0 1px 0 rgba(255,255,255,0.16)'
-                      : '0 2px 12px rgba(0,0,0,0.35)',
+                      ? `0 5px 20px ${BRAND_DIM}0.28), inset 0 1px 0 rgba(255,255,255,0.2)`
+                      : '0 2px 10px rgba(0,0,0,0.3)',
                     position: 'relative', overflow: 'hidden',
+                    backdropFilter: 'blur(4px)',
                   }}>
                     {isUser && (
                       <div style={{
-                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                        background: 'linear-gradient(135deg,rgba(255,255,255,0.09) 0%,transparent 50%)',
+                        position: 'absolute', inset: 0,
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 55%)',
                         pointerEvents: 'none',
                       }} />
                     )}
@@ -483,25 +715,34 @@ export default function DeltaAssistant() {
                   </div>
 
                   <span style={{
-                    fontSize: '9px',
+                    fontSize: 9,
                     color: 'rgba(255,255,255,0.14)',
-                    marginTop: '5px',
-                    fontFamily: "'JetBrains Mono',monospace",
+                    marginTop: 4,
+                    fontFamily: "'Space Grotesk', monospace",
                   }}>{fmt(msg.time)}</span>
                 </div>
               )
             })}
 
+            {/* Typing indicator */}
             {isTyping && (
-              <div style={{
-                padding: '11px 15px',
-                borderRadius: '4px 18px 18px 18px',
-                background: 'rgba(255,255,255,0.048)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                width: 'fit-content',
-                position: 'relative', zIndex: 1,
-              }}>
-                <TypingDots />
+              <div className="dd-msg" style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.14em',
+                  textTransform: 'uppercase', marginBottom: 5,
+                  fontFamily: "'Space Grotesk', monospace",
+                  color: 'rgba(255,255,255,0.2)',
+                }}>△ Delta</div>
+                <div style={{
+                  padding: '11px 15px',
+                  borderRadius: '3px 18px 18px 18px',
+                  background: 'rgba(255,255,255,0.045)',
+                  border: `1px solid ${BRAND_DIM}0.1)`,
+                  width: 'fit-content',
+                  backdropFilter: 'blur(4px)',
+                }}>
+                  <TypingDots />
+                </div>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -510,39 +751,45 @@ export default function DeltaAssistant() {
           {/* ── QUICK REPLIES ── */}
           {messages.length <= 2 && (
             <div style={{
-              padding: '10px 14px 7px',
-              display: 'flex', flexWrap: 'wrap', gap: '7px',
-              background: '#0a0a0a',
-              borderTop: '1px solid rgba(255,255,255,0.045)',
+              padding: '10px 14px 8px',
+              display: 'flex', flexWrap: 'wrap', gap: 7,
+              background: BG_MID,
+              borderTop: `1px solid ${BRAND_DIM}0.07)`,
+              flexShrink: 0,
             }}>
               <div style={{
-                width: '100%', fontSize: '9px', fontWeight: '600',
-                color: 'rgba(255,255,255,0.18)', letterSpacing: '0.12em',
-                fontFamily: "'JetBrains Mono',monospace", marginBottom: '4px',
-              }}>QUICK START</div>
+                width: '100%', fontSize: 9, fontWeight: 700,
+                color: 'rgba(255,255,255,0.18)', letterSpacing: '0.14em',
+                fontFamily: "'Space Grotesk', monospace",
+                textTransform: 'uppercase', marginBottom: 2,
+              }}>Quick start</div>
               {QUICK_REPLIES.map((item, i) => (
-                <button key={i} className="dt-quick"
+                <button
+                  key={i}
+                  className="dd-quick"
                   onClick={() => sendMessage(item)}
                   style={{
-                    border: '1px solid rgba(249,115,22,0.24)',
+                    border: `1px solid ${BRAND_DIM}0.2)`,
                     padding: '6px 12px',
-                    borderRadius: '18px', cursor: 'pointer',
-                    background: 'rgba(249,115,22,0.07)',
-                    color: 'rgba(255,255,255,0.68)',
-                    fontSize: '11.5px',
-                    fontFamily: "'Outfit',sans-serif", fontWeight: '500',
+                    borderRadius: 20, cursor: 'pointer',
+                    background: `${BRAND_DIM}0.06)`,
+                    color: 'rgba(255,255,255,0.6)',
+                    fontSize: 11.5, fontWeight: 500,
+                    animationDelay: `${i * 0.07}s`,
+                    opacity: 0,
                   }}
                 >{item}</button>
               ))}
             </div>
           )}
 
-          {/* ── INPUT ── */}
+          {/* ── INPUT ROW ── */}
           <div style={{
-            padding: '12px 14px',
-            display: 'flex', gap: '9px', alignItems: 'flex-end',
-            background: '#0a0a0a',
-            borderTop: '1px solid rgba(255,255,255,0.055)',
+            padding: '10px 12px',
+            display: 'flex', gap: 9, alignItems: 'flex-end',
+            background: BG_MID,
+            borderTop: `1px solid rgba(255,255,255,0.05)`,
+            flexShrink: 0,
           }}>
             <textarea
               ref={inputRef}
@@ -551,50 +798,51 @@ export default function DeltaAssistant() {
               onKeyDown={handleKeyDown}
               placeholder="Ask me anything..."
               rows={1}
-              className="dt-input"
+              className="dd-input"
               style={{
                 flex: 1, resize: 'none',
-                borderRadius: '14px',
-                border: '1px solid rgba(255,255,255,0.09)',
-                background: 'rgba(255,255,255,0.05)',
-                padding: '11px 15px',
-                color: 'white', fontSize: '13.5px', lineHeight: '1.5',
-                transition: 'border-color .2s, box-shadow .2s',
+                borderRadius: 13,
+                border: `1px solid rgba(255,255,255,0.08)`,
+                background: 'rgba(255,255,255,0.04)',
+                padding: '10px 14px',
+                color: 'white', fontSize: 13.5, lineHeight: 1.5,
               }}
             />
             <button
-              className="dt-send"
+              className="dd-send"
               onClick={() => sendMessage()}
               disabled={!input.trim() || isTyping}
               style={{
-                width: '44px', height: '44px', flexShrink: 0,
-                borderRadius: '13px', border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(140deg,#f97316,#b91c1c)',
-                color: 'white',
+                width: 44, height: 44, flexShrink: 0,
+                borderRadius: 13, border: 'none', cursor: 'pointer',
+                background: BRAND,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 18px rgba(249,115,22,0.38)',
+                boxShadow: `0 4px 18px ${BRAND_DIM}0.35)`,
               }}
-            ><SendIcon /></button>
+            >
+              <SendIcon />
+            </button>
           </div>
 
           {/* ── FOOTER ── */}
           <div style={{
-            textAlign: 'center', padding: '6px 0 11px',
-            background: '#0a0a0a',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            textAlign: 'center', padding: '5px 0 10px',
+            background: BG_MID,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            flexShrink: 0,
           }}>
             <svg width="9" height="9" viewBox="0 0 36 36" fill="none">
               <path
                 d="M10 8H19C24.5228 8 29 12.4772 29 18C29 23.5228 24.5228 28 19 28H10V8Z"
-                stroke="rgba(249,115,22,0.38)" strokeWidth="2.5" strokeLinejoin="round" fill="none"
+                stroke={`${BRAND_DIM}0.35)`} strokeWidth="2.5" fill="none" strokeLinejoin="round"
               />
             </svg>
             <span style={{
-              fontSize: '10px', color: 'rgba(255,255,255,0.13)',
-              fontFamily: "'JetBrains Mono',monospace", letterSpacing: '0.05em',
+              fontSize: 10, color: 'rgba(255,255,255,0.12)',
+              fontFamily: "'Space Grotesk', monospace", letterSpacing: '0.04em',
             }}>
               Powered by{' '}
-              <span style={{ color: 'rgba(249,115,22,0.42)', fontWeight: '500' }}>
+              <span style={{ color: `${BRAND_DIM}0.4)`, fontWeight: 600 }}>
                 Delta Developers
               </span>
             </span>
