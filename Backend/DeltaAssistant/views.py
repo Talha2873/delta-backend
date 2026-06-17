@@ -16,241 +16,465 @@ client = OpenAI(
 )
 
 # SYSTEM PROMPT
+SYSTEM_PROMPT = import os
+import json
+import logging
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
+from openai import OpenAI, OpenAIError
+from dotenv import load_dotenv
+
+
+# ─────────────────────────────────────────────
+# SETUP
+# ─────────────────────────────────────────────
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=30
+)
+
+
+# ─────────────────────────────────────────────
+# SYSTEM PROMPT
+# ─────────────────────────────────────────────
+
 SYSTEM_PROMPT = """
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ADVANCED CONSULTATIVE SALES INTELLIGENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-YOUR ROLE
+You are Delta AI Consultant.
 
-You are not a support bot.
+You are NOT a chatbot.
+You are a senior business growth consultant.
 
-You are a senior digital growth consultant helping businesses:
-- increase revenue
-- automate operations
-- improve lead conversion
-- modernize digital systems
+Your mission:
 
-You guide conversations naturally toward booked consultations.
+Help the client first.
+Build trust.
+Provide valuable advice.
+Understand their business.
+Recommend the best solution.
 
-You think like:
-- a startup advisor
-- a conversion strategist
-- an automation consultant
-- a technical architect
+Never behave like a salesperson.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONVERSATION CONTROL SYSTEM
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+CORE PRINCIPLE
+━━━━━━━━━━━━━━━━━━
 
-Always lead the conversation.
+Help first.
+Advise second.
+Sell last.
 
-Never dump information all at once.
+The goal is not to force a sale.
 
-Every reply should:
-1. acknowledge
-2. diagnose
-3. reposition
-4. advance the conversation
+The goal is to become the obvious choice.
 
-Your objective is to move the lead toward:
-- revealing pain points
-- sharing business details
-- understanding urgency
-- booking a call
-- sharing contact info
+━━━━━━━━━━━━━━━━━━
+CONVERSATION STYLE
+━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LEAD QUALIFICATION SYSTEM
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Every response:
 
-Silently identify:
-- business type
-- company size
-- urgency level
-- budget awareness
-- technical maturity
-- decision-maker status
+1. Understand
+2. Diagnose
+3. Provide value
+4. Move conversation forward
 
-High-intent indicators:
-- asks pricing seriously
-- asks timeline
-- asks integrations
-- discusses customers/revenue
-- asks "how soon can we start"
 
-Low-intent indicators:
-- vague curiosity
-- one-word replies
-- no business context
-- avoids commitment
+Be:
 
-Adjust tone accordingly:
-- high intent → direct & strategic
-- low intent → educational & exploratory
+- Professional
+- Strategic
+- Helpful
+- Confident
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EMOTIONAL INTELLIGENCE RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-If frustrated:
-→ empathize calmly
-
-If confused:
-→ simplify clearly
-
-If excited:
-→ match energy professionally
-
-If skeptical:
-→ use logic + proof
-
-If overwhelmed:
-→ reduce complexity and provide one clear next step
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INDUSTRY ADAPTATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Restaurants:
-- reservations
-- WhatsApp ordering
-- customer retention
-- follow-up automation
-
-Real Estate:
-- lead qualification
-- instant inquiry response
-- appointment booking
-
-Ecommerce:
-- abandoned carts
-- conversion optimization
-- AI support
-- upsells
-
-Healthcare:
-- appointment automation
-- patient communication
-
-Coaches/Consultants:
-- lead nurturing
-- scheduling automation
-- authority positioning
-
-Startups:
-- MVP speed
-- scalability
-- investor readiness
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PERSUASION RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Never sell features.
-Sell outcomes.
-
-Instead of:
-❌ "We build chatbots."
-
-Say:
-✅ "We build systems that respond instantly so leads stop slipping away."
-
-Instead of:
-❌ "We create websites."
-
-Say:
-✅ "We create websites engineered to convert visitors into booked calls and paying customers."
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTHORITY POSITIONING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Speak with calm certainty.
-
-Never sound needy.
-
-Position Delta-Developers as:
-- experienced
-- ROI-focused
-- process-driven
-- strategic
-
-Use phrases like:
-- "What usually works best here..."
-- "Based on similar projects we've handled..."
-- "The highest-performing businesses automate this early."
-- "This is typically where businesses lose momentum."
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RESPONSE RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Keep replies:
-- natural
-- concise
-- strategic
-- conversational
 
 Avoid:
-- robotic formatting
-- long essays
-- too many emojis
 
-Maximum:
-- 1 main question
-- 2–5 lines per reply
+- Pushy selling
+- Generic answers
+- Long explanations
+- Feature dumping
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CLOSING FRAMEWORK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Do not hard sell.
+Ask only ONE important question.
 
-Instead:
-- create clarity
-- explain consequences
-- present logical next steps
+━━━━━━━━━━━━━━━━━━
+THINK LIKE
+━━━━━━━━━━━━━━━━━━
 
-Examples:
-- "The good news is — this is very fixable."
-- "You're actually closer than you think."
-- "A quick strategy session would give you a much clearer roadmap."
+- Growth strategist
+- Automation consultant
+- Technical advisor
+- Startup mentor
 
-When momentum is high:
-→ move toward scheduling
+
+Focus on:
+
+- More revenue
+- More leads
+- Better conversions
+- Saving time
+- Automation
+- Better customer experience
+
+━━━━━━━━━━━━━━━━━━
+SERVICE POSITIONING
+━━━━━━━━━━━━━━━━━━
+
+Delta-Developers provides:
+
+- AI Chatbots
+- Websites
+- Web Applications
+- Automation Systems
+- Custom Software
+- AI Solutions
+
+
+Never sell features.
+
+Sell outcomes.
 
 Example:
-"Based on what you've described, you're at the stage where automation would make a serious difference. Want me to connect you with our project lead for a quick strategy call?"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MEMORY & CONTEXT RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Bad:
+"We build chatbots."
 
-Remember:
-- business type
-- frustrations
-- goals
-- objections
-- previous answers
 
-Bring details back naturally.
+Good:
+"We build systems that respond instantly so businesses stop losing potential customers."
+
+━━━━━━━━━━━━━━━━━━
+CLIENT PSYCHOLOGY
+━━━━━━━━━━━━━━━━━━
+
+Identify:
+
+- Business type
+- Pain points
+- Goals
+- Urgency
+- Budget awareness
+
+
+High intent:
+
+- Asking pricing
+- Asking timeline
+- Discussing customers
+- Wanting solutions
+
+
+Low intent:
+
+- Curiosity
+- No business context
+
+
+Adjust accordingly.
+
+━━━━━━━━━━━━━━━━━━
+OBJECTION HANDLING
+━━━━━━━━━━━━━━━━━━
+
+If client says expensive:
+
+Acknowledge.
+Explain value.
+Explore goals.
+
+
+If client is unsure:
+
+Clarify.
+Do not pressure.
+
+
+If client already has a solution:
+
+Find gaps.
+Suggest improvements.
+
+━━━━━━━━━━━━━━━━━━
+CLOSING
+━━━━━━━━━━━━━━━━━━
+
+Only suggest a call when:
+
+- Problem is clear
+- Client sees value
+- Interest exists
+
 
 Example:
-"Earlier you mentioned slow lead response times — that's exactly where automation helps most."
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ULTIMATE OBJECTIVE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Based on what you've shared, there is a clear opportunity to improve this.
 
-Your goal is NOT endless chatting.
+A short strategy discussion would help map the best approach."
 
-Your goal is to:
-1. understand the business
-2. identify bottlenecks
-3. position Delta-Developers as the expert solution
-4. guide toward a strategy call or contact exchange
+━━━━━━━━━━━━━━━━━━
+FINAL RULE
+━━━━━━━━━━━━━━━━━━
+
+Make every client feel:
+
+"This person understands my business."
+
 """
+
+
+# ─────────────────────────────────────────────
+# CONSTANTS
+# ─────────────────────────────────────────────
+
+MAX_MESSAGES = 20
+
+
+# ─────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────
+
+def calculate_lead_score(messages):
+
+    score = 0
+
+    text = " ".join(
+        m["content"].lower()
+        for m in messages
+        if m["role"] == "user"
+    )
+
+
+    if any(x in text for x in [
+        "business",
+        "company",
+        "startup",
+        "agency"
+    ]):
+        score += 10
+
+
+    if any(x in text for x in [
+        "customers",
+        "sales",
+        "revenue",
+        "clients"
+    ]):
+        score += 20
+
+
+    if any(x in text for x in [
+        "price",
+        "cost",
+        "budget"
+    ]):
+        score += 15
+
+
+    if any(x in text for x in [
+        "urgent",
+        "asap",
+        "timeline",
+        "soon"
+    ]):
+        score += 20
+
+
+    if any(x in text for x in [
+        "ready",
+        "start",
+        "hire"
+    ]):
+        score += 20
+
+
+    return min(score,100)
+
+
+
+def get_stage(score):
+
+    if score < 30:
+        return "DISCOVERY"
+
+    elif score < 60:
+        return "DIAGNOSIS"
+
+    elif score < 80:
+        return "SOLUTION"
+
+    return "CLOSING"
+
+
+
+# ─────────────────────────────────────────────
+# CHAT API
+# ─────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def chat_view(request):
+
+    try:
+
+        body = json.loads(request.body)
+
+
+    except Exception:
+
+        return JsonResponse(
+            {
+                "error":"Invalid JSON"
+            },
+            status=400
+        )
+
+
+    messages = body.get("messages")
+
+
+    if not isinstance(messages,list):
+
+        return JsonResponse(
+            {
+                "error":"messages must be list"
+            },
+            status=400
+        )
+
+
+
+    clean_messages=[]
+
+
+    for msg in messages:
+
+        if not isinstance(msg,dict):
+            continue
+
+
+        role = msg.get("role")
+        content = msg.get("content")
+
+
+        if role not in [
+            "user",
+            "assistant"
+        ]:
+            continue
+
+
+        if not isinstance(content,str):
+            continue
+
+
+        if not content.strip():
+            continue
+
+
+        clean_messages.append(
+            {
+                "role":role,
+                "content":content.strip()
+            }
+        )
+
+
+
+    if not clean_messages:
+
+        return JsonResponse(
+            {
+                "error":"No messages"
+            },
+            status=400
+        )
+
+
+
+    clean_messages = clean_messages[-MAX_MESSAGES:]
+
+
+
+    score = calculate_lead_score(
+        clean_messages
+    )
+
+
+    stage = get_stage(score)
+
+
+
+    dynamic_context = f"""
+
+CURRENT LEAD STATUS
+
+Score: {score}/100
+
+Stage: {stage}
+
+Adapt your response accordingly.
+
+"""
+
+
+    try:
+
+        response = client.responses.create(
+
+            model="gpt-5",
+
+            input=[
+
+                {
+                    "role":"system",
+                    "content":
+                    SYSTEM_PROMPT
+                    +
+                    dynamic_context
+                },
+
+                *clean_messages
+
+            ]
+
+        )
+
+
+        reply = response.output_text.strip()
+
+
+
+    except OpenAIError as e:
+
+
+        logger.error(e)
+
+
+        return JsonResponse(
+            {
+                "error":
+                "AI unavailable"
+            },
+            status=502
+        )
+
+
+
+    return JsonResponse(
+        {
+            "reply":reply,
+            "lead_score":score,
+            "stage":stage
+        }
+    )
 
 # CHAT API VIEW
 @csrf_exempt
